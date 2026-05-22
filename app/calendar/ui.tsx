@@ -34,27 +34,39 @@ import { clientApi } from "@/lib/client-api";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 
 export function CalendarClient() {
-  const now = new Date();
+  const [monthDate] = useState(() => new Date());
   const [status, setStatus] = useState<string>("all");
   const [selected, setSelected] = useState<Appointment | null>(null);
-  const startDate = format(startOfMonth(now), "yyyy-MM-dd");
-  const endDate = format(endOfMonth(now), "yyyy-MM-dd");
+  const startDate = format(startOfMonth(monthDate), "yyyy-MM-dd");
+  const endDate = format(endOfMonth(monthDate), "yyyy-MM-dd");
   const query = useQuery({
     queryKey: ["calendar", startDate, endDate],
     queryFn: async () =>
       (
-        await clientApi.get<Appointment[]>("/calendar", {
+        await clientApi.get<Appointment[] | { appointments: Appointment[] }>(
+          "/calendar",
+          {
           params: { startDate, endDate },
-        })
+          },
+        )
       ).data,
   });
   const days = useMemo(
-    () => eachDayOfInterval({ start: startOfMonth(now), end: endOfMonth(now) }),
-    [now],
+    () =>
+      eachDayOfInterval({
+        start: startOfMonth(monthDate),
+        end: endOfMonth(monthDate),
+      }),
+    [monthDate],
   );
-  const appointments = (query.data ?? []).filter(
-    (item) => status === "all" || item.status === status,
-  );
+  const calendarAppointments = Array.isArray(query.data)
+    ? query.data
+    : query.data?.appointments;
+  const appointments = Array.isArray(calendarAppointments)
+    ? calendarAppointments.filter(
+        (item) => status === "all" || item.status === status,
+      )
+    : [];
 
   if (query.isLoading) return <LoadingState label="Loading calendar" />;
   if (query.isError) return <ErrorState label="Unable to load calendar" />;
@@ -64,7 +76,7 @@ export function CalendarClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarDays className="h-4 w-4" />
-          {format(now, "MMMM yyyy")}
+          {format(monthDate, "MMMM yyyy")}
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-44">

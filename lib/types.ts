@@ -1,4 +1,4 @@
-export type UserRole = "business" | "admin";
+export type UserRole = "customer" | "business" | "admin";
 
 export type User = {
   id: string;
@@ -14,16 +14,30 @@ export type LoginResponse = {
   token: string;
 };
 
-export type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed";
+export type AppointmentStatus =
+  | "pending"
+  | "confirmed"
+  | "cancelled"
+  | "completed";
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+};
+
+export type AppointmentsResponse = PaginatedResponse<Appointment>;
 
 export type Appointment = {
   _id: string;
-  businessId: string;
-  serviceId: string;
-  customerId: string;
-  businessName?: string;
-  customerName?: string;
+  businessId: { _id: string; name: string };
+  serviceId: { _id: string; name: string };
+  customerId: { _id: string; name: string };
   serviceName?: string;
+  customerName?: string;
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
@@ -43,6 +57,12 @@ export type BusinessDashboard = {
   };
 };
 
+export type WorkingHours = {
+  isOpen: boolean;
+  start: string;
+  end: string;
+};
+
 export type BusinessPayload = {
   name: string;
   description: string;
@@ -50,9 +70,14 @@ export type BusinessPayload = {
     country: string;
     city: string;
     address: string;
+    latitude: number;
+    longitude: number;
   };
   timezone: string;
+  workingHours?: Record<string, WorkingHours>;
 };
+
+export type ServicesResponse = PaginatedResponse<Service>;
 
 export type Service = {
   _id: string;
@@ -73,6 +98,8 @@ export type Customer = {
   lastAppointmentDate: string;
   status: "active" | "inactive";
 };
+
+export type CustomersResponse = PaginatedResponse<Customer>;
 
 export type Notification = {
   _id: string;

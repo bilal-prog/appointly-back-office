@@ -4,7 +4,14 @@ import { getBusinessDashboard } from "@/lib/api";
 export async function GET() {
   try {
     return NextResponse.json(await getBusinessDashboard());
-  } catch {
-    return NextResponse.json({ message: "Unable to load dashboard" }, { status: 500 });
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      "Unable to load dashboard";
+    return NextResponse.json(
+      { message },
+      { status: error.response?.status || 500 },
+    );
   }
 }

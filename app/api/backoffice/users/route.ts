@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { createService, getServices } from "@/lib/api";
+import { createUser, getUsers } from "@/lib/api";
 
 export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
-    return NextResponse.json(await getServices(params));
+    return NextResponse.json(await getUsers(params));
   } catch (error: any) {
     const message =
       error.response?.data?.message ||
       error.response?.data?.error ||
-      "Unable to get services";
+      "Unable to get users";
     return NextResponse.json(
       { message },
       { status: error.response?.status || 500 },
@@ -19,14 +19,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    return NextResponse.json(await createService(body));
+    return NextResponse.json(await createUser(await request.json()));
   } catch (error: any) {
-    console.error("Error creating service:", error);
     const message =
       error.response?.data?.message ||
       error.response?.data?.error ||
-      "Unable to create service";
+      "Unable to create user";
     return NextResponse.json(
       { message },
       { status: error.response?.status || 500 },

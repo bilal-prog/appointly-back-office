@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
-import { getServerUser } from "@/lib/api";
+import { getCurrentUser } from "@/lib/api";
 
 export async function GET() {
-  const user = await getServerUser();
-  if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ user });
+  try {
+    return NextResponse.json({ user: await getCurrentUser() });
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      "Unauthorized";
+    return NextResponse.json(
+      { message },
+      { status: error.response?.status || 401 },
+    );
+  }
 }

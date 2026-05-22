@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { createBusiness } from "@/lib/api";
+import { getMyBusiness } from "@/lib/api";
 
-export async function POST(request: Request) {
+export async function GET() {
   try {
-    return NextResponse.json(await createBusiness(await request.json()));
+    return NextResponse.json(await getMyBusiness());
   } catch (error: any) {
     const message =
       error.response?.data?.message ||
       error.response?.data?.error ||
-      "Unable to create business";
+      "Unable to get business";
     return NextResponse.json(
       { message },
       { status: error.response?.status || 500 },

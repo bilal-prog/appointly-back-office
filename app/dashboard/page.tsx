@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   if (user.role === "admin") redirect("/admin");
   return (
     <AppShell user={user}>
-      <DashboardClient />
+      <DashboardClient user={user} />
     </AppShell>
   );
 }

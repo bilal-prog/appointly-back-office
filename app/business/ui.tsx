@@ -1,16 +1,54 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { Clock, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { LoadingState } from "@/components/shared/states";
 import { clientApi } from "@/lib/client-api";
+import type { WorkingHours } from "@/lib/types";
+
+const DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+const workingHoursSchema = z
+  .object({
+    isOpen: z.boolean(),
+    start: z.string().optional(),
+    end: z.string().optional(),
+  })
+  .refine((data) => !data.isOpen || (data.start && data.end), {
+    message: "Start and end times are required when open",
+    path: ["start"],
+  });
 
 const schema = z.object({
   name: z.string().min(2),
@@ -18,63 +56,336 @@ const schema = z.object({
   country: z.string().min(2),
   city: z.string().min(2),
   address: z.string().min(4),
-  timezone: z.string().min(2)
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  timezone: z.string().min(2),
+  workingHours: z.record(workingHoursSchema),
 });
 
 type FormValues = z.infer<typeof schema>;
 
+const defaultWorkingHours: Record<string, WorkingHours> = DAYS.reduce(
+  (acc, day) => {
+    acc[day] = {
+      isOpen: day !== "saturday" && day !== "sunday",
+      start: "09:00",
+      end: "17:00",
+    };
+    return acc;
+  },
+  {} as Record<string, WorkingHours>,
+);
+
 export function BusinessClient() {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["business"],
+    queryFn: async () => {
+      try {
+        return (await clientApi.get("/myBusiness")).data;
+      } catch (error) {
+        toast.error("Failed to fetch business: " + (error as Error).message);
+        return null;
+      }
+    },
+  });
+
+  const business = data?.business;
+  console.log("business?.timezone raw:", JSON.stringify(business?.timezone));
+  console.log(
+    "values.timezone:",
+    business ? (business.timezone ?? "") : "undefined - no business",
+  );
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       description: "",
-      country: "Morocco",
-      city: "Casablanca",
+      country: "",
+      city: "",
       address: "",
-      timezone: "Africa/Casablanca"
-    }
+      latitude: 0,
+      longitude: 0,
+      timezone: "",
+      workingHours: defaultWorkingHours,
+    },
+    values: business
+      ? {
+          name: business.name ?? "",
+          description: business.description ?? "",
+          country: business.location?.country ?? "",
+          city: business.location?.city ?? "",
+          address: business.location?.address ?? "",
+          latitude: business.location?.coordinates?.latitude ?? 0,
+          longitude: business.location?.coordinates?.longitude ?? 0,
+          timezone: business.timezone ?? "",
+          workingHours: business.workingHours ?? defaultWorkingHours,
+        }
+      : undefined,
+    resetOptions: {
+      keepDirtyValues: false,
+      keepErrors: false,
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      if (business) {
+        await clientApi.put(`/businesses/${business._id}`, {
+          name: values.name,
+          description: values.description,
+          location: {
+            country: values.country,
+            city: values.city,
+            address: values.address,
+            coordinates: {
+              latitude: values.latitude,
+              longitude: values.longitude,
+            },
+          },
+          timezone: values.timezone,
+          workingHours: values.workingHours,
+        });
+      } else {
+        await clientApi.post("/businesses", {
+          name: values.name,
+          description: values.description,
+          location: {
+            country: values.country,
+            city: values.city,
+            address: values.address,
+            coordinates: {
+              latitude: values.latitude,
+              longitude: values.longitude,
+            },
+          },
+          timezone: values.timezone,
+          workingHours: values.workingHours,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["business"] });
+      toast.success(
+        business ? "Business profile updated" : "Business profile created",
+      );
+    },
+    onError: (error: any) => {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Failed to save business profile";
+      toast.error(message);
+    },
   });
 
   async function onSubmit(values: FormValues) {
-    try {
-      await clientApi.post("/businesses", {
-        name: values.name,
-        description: values.description,
-        location: { country: values.country, city: values.city, address: values.address },
-        timezone: values.timezone
-      });
-      toast.success("Business profile saved");
-    } catch {
-      toast.error("Business profile could not be saved");
-    }
+    mutation.mutate(values);
   }
 
+  if (isLoading) return <LoadingState label="Loading business profile" />;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Business profile</CardTitle>
-        <CardDescription>Manage the operational profile used by the back office.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
-          <Field label="Name" error={form.formState.errors.name?.message}><Input {...form.register("name")} /></Field>
-          <Field label="Timezone" error={form.formState.errors.timezone?.message}><Input {...form.register("timezone")} /></Field>
-          <Field label="Country" error={form.formState.errors.country?.message}><Input {...form.register("country")} /></Field>
-          <Field label="City" error={form.formState.errors.city?.message}><Input {...form.register("city")} /></Field>
-          <Field label="Address" error={form.formState.errors.address?.message}><Input {...form.register("address")} /></Field>
-          <div className="md:col-span-2">
-            <Field label="Description" error={form.formState.errors.description?.message}><Textarea {...form.register("description")} /></Field>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Business profile</CardTitle>
+          <CardDescription>
+            Manage the operational profile used by the back office.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
+            <Field label="Name" error={form.formState.errors.name?.message}>
+              <Input {...form.register("name")} />
+            </Field>
+
+            <Field
+              label="Timezone"
+              error={form.formState.errors.timezone?.message}
+            >
+              <Controller
+                control={form.control}
+                name="timezone"
+                render={({ field }) => (
+                  <Select
+                    key={field.value}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      side="bottom"
+                      sideOffset={5}
+                      className="z-[9999]"
+                    >
+                      <SelectItem value="Africa/Casablanca">
+                        Africa/Casablanca
+                      </SelectItem>
+                      <SelectItem value="Africa/Tunis">Africa/Tunis</SelectItem>
+                      <SelectItem value="Africa/Algiers">
+                        Africa/Algiers
+                      </SelectItem>
+                      <SelectItem value="Africa/Cairo">Africa/Cairo</SelectItem>
+                      <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
+                      <SelectItem value="Europe/London">
+                        Europe/London
+                      </SelectItem>
+                      <SelectItem value="Europe/Berlin">
+                        Europe/Berlin
+                      </SelectItem>
+                      <SelectItem value="Europe/Madrid">
+                        Europe/Madrid
+                      </SelectItem>
+                      <SelectItem value="Europe/Rome">Europe/Rome</SelectItem>
+                      <SelectItem value="America/New_York">
+                        America/New_York
+                      </SelectItem>
+                      <SelectItem value="America/Los_Angeles">
+                        America/Los_Angeles
+                      </SelectItem>
+                      <SelectItem value="America/Chicago">
+                        America/Chicago
+                      </SelectItem>
+                      <SelectItem value="Asia/Dubai">Asia/Dubai</SelectItem>
+                      <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+                      <SelectItem value="Asia/Shanghai">
+                        Asia/Shanghai
+                      </SelectItem>
+                      <SelectItem value="Australia/Sydney">
+                        Australia/Sydney
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
+            <Field
+              label="Country"
+              error={form.formState.errors.country?.message}
+            >
+              <Input {...form.register("country")} />
+            </Field>
+            <Field label="City" error={form.formState.errors.city?.message}>
+              <Input {...form.register("city")} />
+            </Field>
+            <Field
+              label="Address"
+              error={form.formState.errors.address?.message}
+            >
+              <Input {...form.register("address")} />
+            </Field>
+            <Field
+              label="Latitude"
+              error={form.formState.errors.latitude?.message}
+            >
+              <Input
+                type="number"
+                step="any"
+                {...form.register("latitude", { valueAsNumber: true })}
+              />
+            </Field>
+            <Field
+              label="Longitude"
+              error={form.formState.errors.longitude?.message}
+            >
+              <Input
+                type="number"
+                step="any"
+                {...form.register("longitude", { valueAsNumber: true })}
+              />
+            </Field>
+            <div className="md:col-span-2">
+              <Field
+                label="Description"
+                error={form.formState.errors.description?.message}
+              >
+                <Textarea {...form.register("description")} />
+              </Field>
+            </div>
+            <div className="md:col-span-2">
+              <Button disabled={mutation.isPending}>
+                {mutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {business ? "Update profile" : "Create profile"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Working hours
+          </CardTitle>
+          <CardDescription>
+            Set your business operating hours for each day of the week.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {DAYS.map((day) => (
+              <div
+                key={day}
+                className="flex items-center gap-4 rounded-lg border p-4"
+              >
+                <div className="flex-1">
+                  <Label className="capitalize">{day}</Label>
+                </div>
+                <Switch
+                  checked={form.watch(`workingHours.${day}.isOpen`)}
+                  onCheckedChange={(checked: boolean) =>
+                    form.setValue(`workingHours.${day}.isOpen`, checked)
+                  }
+                />
+                {form.watch(`workingHours.${day}.isOpen`) && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      {...form.register(`workingHours.${day}.start`)}
+                      className="w-32"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="time"
+                      {...form.register(`workingHours.${day}.end`)}
+                      className="w-32"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="md:col-span-2">
-            <Button disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Save profile</Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label>{label}</Label>{children}{error ? <p className="text-sm text-destructive">{error}</p> : null}</div>;
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {children}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    </div>
+  );
 }

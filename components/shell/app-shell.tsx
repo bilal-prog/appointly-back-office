@@ -15,10 +15,10 @@ import {
   Users,
   X
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { clearClientUser } from "@/lib/auth";
+import { clearClientUser, saveClientUser } from "@/lib/auth";
 import { clientApi } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import type { User } from "@/lib/types";
@@ -48,9 +48,31 @@ const adminNav = [
 export function AppShell({ user, children }: { user: User; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState(user);
   const [open, setOpen] = useState(false);
-  const nav = user.role === "admin" ? adminNav : businessNav;
+  const nav = currentUser.role === "admin" ? adminNav : businessNav;
   const title = useMemo(() => nav.find((item) => item.href === pathname)?.label ?? "Appointly", [nav, pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshUser() {
+      try {
+        const { data } = await clientApi.get<{ user: User }>("/me");
+        if (cancelled) return;
+        setCurrentUser(data.user);
+        saveClientUser(data.user);
+      } catch {
+        return;
+      }
+    }
+
+    refreshUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   async function logout() {
     await clientApi.post("/auth/logout").catch(() => null);
@@ -62,7 +84,7 @@ export function AppShell({ user, children }: { user: User; children: React.React
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r bg-card">
       <div className="flex h-14 items-center justify-between border-b px-4">
-        <Link href={user.role === "admin" ? "/admin" : "/dashboard"} className="text-base font-semibold">
+        <Link href={currentUser.role === "admin" ? "/admin" : "/dashboard"} className="text-base font-semibold">
           Appointly
         </Link>
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(false)}>
@@ -91,8 +113,8 @@ export function AppShell({ user, children }: { user: User; children: React.React
       </nav>
       <div className="border-t p-3">
         <div className="rounded-md bg-muted p-3 text-sm">
-          <div className="font-medium">{user.name}</div>
-          <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+          <div className="font-medium">{currentUser.name}</div>
+          <div className="truncate text-xs text-muted-foreground">{currentUser.email}</div>
         </div>
       </div>
     </aside>
