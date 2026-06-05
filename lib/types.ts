@@ -2,11 +2,13 @@ export type UserRole = "customer" | "business" | "admin";
 
 export type User = {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   role: UserRole;
   businessId?: string;
   isActive?: boolean;
+  isProtected?: boolean;
 };
 
 export type LoginResponse = {
@@ -63,17 +65,64 @@ export type WorkingHours = {
   end: string;
 };
 
+export type Category = {
+  _id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  isActive?: boolean;
+};
+
+export type Subscription = {
+  plan: Plan;
+  status?: "active" | "past_due" | "canceled" | "inactive";
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+};
+
+export type Business = {
+  _id: string;
+  name: string;
+  description?: string;
+  category?: string | Category;
+  currency?: string;
+  location?: {
+    country?: string;
+    city?: string;
+    address?: string;
+    coordinates?: {
+      latitude?: number;
+      longitude?: number;
+    };
+  };
+  ownerId?: string | Pick<User, "_id" | "id" | "name" | "email">;
+  timezone?: string;
+  workingHours?: Record<string, WorkingHours>;
+  subscription?: Subscription;
+  status?: "draft" | "published" | "suspended";
+  cancellationWindowHours?: number;
+  appointmentsCount?: number;
+  createdAt?: string;
+};
+
+export type BusinessesResponse = PaginatedResponse<Business>;
+
 export type BusinessPayload = {
   name: string;
   description: string;
+  category: string;
+  currency: string;
   location: {
     country: string;
     city: string;
     address: string;
-    latitude: number;
-    longitude: number;
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    };
   };
   timezone: string;
+  cancellationWindowHours: number;
   workingHours?: Record<string, WorkingHours>;
 };
 
@@ -104,7 +153,7 @@ export type CustomersResponse = PaginatedResponse<Customer>;
 export type Notification = {
   _id: string;
   userId: string;
-  type: "appointment" | "subscription" | "system";
+  type: "appointment" | "reminder" | "system";
   title: string;
   message: string;
   isRead: boolean;

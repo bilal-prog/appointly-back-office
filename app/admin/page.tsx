@@ -1,17 +1,21 @@
 import { redirect } from "next/navigation";
-import { BarChart3, Building2, CalendarCheck, CreditCard, Users } from "lucide-react";
+import { Building2, CalendarCheck, CreditCard, Users } from "lucide-react";
 import { AppShell } from "@/components/shell/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/shared/data-table";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { getAdminStats, getServerUser } from "@/lib/api";
+import { getAdminStats, getBusinesses, getServerUser } from "@/lib/api";
 
 export default async function AdminPage() {
   const user = await getServerUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/dashboard");
   const stats = await getAdminStats();
+  const businesses = await getBusinesses(
+    new URLSearchParams({ limit: "5", offset: "0" }),
+  ).catch(() => null);
+
   return (
     <AppShell user={user}>
       <div className="space-y-6">
@@ -22,9 +26,37 @@ export default async function AdminPage() {
           <StatCard title="Active subscriptions" value={stats.activeSubscriptions} icon={CreditCard} />
         </section>
         <section className="grid gap-4 lg:grid-cols-2">
-          <Card><CardHeader><CardTitle>Recent businesses</CardTitle></CardHeader><CardContent><DataTable headers={["Business", "Owner", "Plan"]}><tr><td className="px-4 py-3">Downtown Clinic</td><td className="px-4 py-3">Jane Doe</td><td className="px-4 py-3"><StatusBadge value="pro" /></td></tr></DataTable></CardContent></Card>
-          <Card><CardHeader><CardTitle>Platform activity</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p>New business created</p><p>Checkout session completed</p><p>Appointment status changed</p></CardContent></Card>
-          <Card className="lg:col-span-2"><CardHeader><CardTitle>Revenue placeholder</CardTitle></CardHeader><CardContent className="flex h-56 items-center justify-center gap-2 text-sm text-muted-foreground"><BarChart3 className="h-5 w-5" />Subscription analytics will render here when available.</CardContent></Card>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Recent businesses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DataTable headers={["Business", "Plan", "Status", "Created"]}>
+                {(businesses?.data ?? []).map((business) => (
+                  <tr key={business._id}>
+                    <td className="px-4 py-3 font-medium">{business.name}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge value={business.subscription?.plan ?? "free"} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge
+                        value={
+                          business.status ??
+                          business.subscription?.status ??
+                          "active"
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      {business.createdAt
+                        ? new Date(business.createdAt).toLocaleDateString()
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </DataTable>
+            </CardContent>
+          </Card>
         </section>
       </div>
     </AppShell>

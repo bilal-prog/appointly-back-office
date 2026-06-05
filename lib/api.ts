@@ -5,8 +5,11 @@ import type {
   Appointment,
   AppointmentsResponse,
   AppointmentStatus,
+  BusinessesResponse,
+  Business,
   BusinessDashboard,
   BusinessPayload,
+  Category,
   Customer,
   CustomersResponse,
   LoginResponse,
@@ -206,6 +209,13 @@ export async function getBusinessCalendar(startDate: string, endDate: string) {
   return backendGet(`/api/businesses/calendar?${params.toString()}`);
 }
 
+export async function getCategories(): Promise<Category[]> {
+  const response = await backendGet<Category[] | { data: Category[] }>(
+    "/api/categories",
+  );
+  return Array.isArray(response) ? response : response.data;
+}
+
 export async function createBusiness(body: BusinessPayload) {
   return backendPost("/api/businesses", body);
 }
@@ -215,6 +225,47 @@ export async function updateBusiness(
   businessId: string,
 ) {
   return backendPut(`/api/businesses/${businessId}`, body);
+}
+
+export async function getBusinesses(
+  params?: URLSearchParams,
+): Promise<BusinessesResponse> {
+  const path = withSearchParams("/api/businesses", params);
+  const response = await backendGet<
+    BusinessesResponse | Business[] | { businesses: Business[] }
+  >(path);
+
+  if (Array.isArray(response)) {
+    return {
+      data: response,
+      meta: {
+        total: response.length,
+        limit: response.length,
+        offset: 0,
+      },
+    };
+  }
+
+  if ("businesses" in response) {
+    return {
+      data: response.businesses,
+      meta: {
+        total: response.businesses.length,
+        limit: response.businesses.length,
+        offset: 0,
+      },
+    };
+  }
+
+  return response;
+}
+
+export async function publishBusiness(businessId: string) {
+  return backendPatch(`/api/businesses/${businessId}/publish`, {});
+}
+
+export async function suspendBusiness(businessId: string) {
+  return backendPatch(`/api/businesses/${businessId}/suspend`, {});
 }
 
 export async function updateService(body: Service, serviceId: string) {
@@ -291,21 +342,28 @@ export async function getCustomers(
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
-  const [users, appointments] = await Promise.all([
+  const [users, appointments, businesses] = await Promise.all([
     backendGet<{ data: User[]; meta: { total: number } }>(
       "/api/users?limit=1000&offset=0",
     ),
     backendGet<AppointmentsResponse>(
       "/api/appointments?limit=1&offset=0",
     ).catch(() => null),
+    getBusinesses(new URLSearchParams({ limit: "1000", offset: "0" })).catch(
+      () => null,
+    ),
   ]);
 
   return {
-    totalBusinesses: users.data.filter((user) => user.role === "business")
-      .length,
+    totalBusinesses:
+      businesses?.meta.total ??
+      users.data.filter((user) => user.role === "business").length,
     totalUsers: users.meta.total,
     totalAppointments: appointments?.meta.total ?? 0,
-    activeSubscriptions: 0,
+    activeSubscriptions:
+      businesses?.data.filter(
+        (business) => business.subscription?.status === "active",
+      ).length ?? 0,
   };
 }
 

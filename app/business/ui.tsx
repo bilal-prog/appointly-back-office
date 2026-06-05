@@ -27,7 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/shared/states";
 import { clientApi } from "@/lib/client-api";
-import type { WorkingHours } from "@/lib/types";
+import type { Category, WorkingHours } from "@/lib/types";
 
 const DAYS = [
   "monday",
@@ -53,12 +53,17 @@ const workingHoursSchema = z
 const schema = z.object({
   name: z.string().min(2),
   description: z.string().min(5),
+  category: z.string().min(1, "Category is required"),
+  currency: z.string().length(3, "Use a 3-letter currency code"),
   country: z.string().min(2),
   city: z.string().min(2),
   address: z.string().min(4),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   timezone: z.string().min(2),
+  cancellationWindowHours: z
+    .number()
+    .min(0, "Cancellation window must be 0 or more"),
   workingHours: z.record(workingHoursSchema),
 });
 
@@ -91,35 +96,47 @@ export function BusinessClient() {
     },
   });
 
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () =>
+      (await clientApi.get<{ data: Category[] }>("/categories")).data.data,
+  });
+
   const business = data?.business;
-  console.log("business?.timezone raw:", JSON.stringify(business?.timezone));
-  console.log(
-    "values.timezone:",
-    business ? (business.timezone ?? "") : "undefined - no business",
-  );
+  const businessCategory =
+    typeof business?.category === "object"
+      ? business.category._id
+      : business?.category;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       description: "",
+      category: "",
+      currency: "MAD",
       country: "",
       city: "",
       address: "",
       latitude: 0,
       longitude: 0,
       timezone: "",
+      cancellationWindowHours: 24,
       workingHours: defaultWorkingHours,
     },
     values: business
       ? {
           name: business.name ?? "",
           description: business.description ?? "",
+          category: businessCategory ?? "",
+          currency: business.currency ?? "MAD",
           country: business.location?.country ?? "",
           city: business.location?.city ?? "",
           address: business.location?.address ?? "",
           latitude: business.location?.coordinates?.latitude ?? 0,
           longitude: business.location?.coordinates?.longitude ?? 0,
           timezone: business.timezone ?? "",
+          cancellationWindowHours: business.cancellationWindowHours ?? 24,
           workingHours: business.workingHours ?? defaultWorkingHours,
         }
       : undefined,
@@ -135,6 +152,8 @@ export function BusinessClient() {
         await clientApi.put(`/businesses/${business._id}`, {
           name: values.name,
           description: values.description,
+          category: values.category,
+          currency: values.currency,
           location: {
             country: values.country,
             city: values.city,
@@ -145,12 +164,15 @@ export function BusinessClient() {
             },
           },
           timezone: values.timezone,
+          cancellationWindowHours: values.cancellationWindowHours,
           workingHours: values.workingHours,
         });
       } else {
         await clientApi.post("/businesses", {
           name: values.name,
           description: values.description,
+          category: values.category,
+          currency: values.currency,
           location: {
             country: values.country,
             city: values.city,
@@ -161,6 +183,7 @@ export function BusinessClient() {
             },
           },
           timezone: values.timezone,
+          cancellationWindowHours: values.cancellationWindowHours,
           workingHours: values.workingHours,
         });
       }
@@ -202,6 +225,30 @@ export function BusinessClient() {
           >
             <Field label="Name" error={form.formState.errors.name?.message}>
               <Input {...form.register("name")} />
+            </Field>
+
+            <Field
+              label="Category"
+              error={form.formState.errors.category?.message}
+            >
+              <Controller
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(categories ?? []).map((category) => (
+                        <SelectItem key={category._id} value={category._id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </Field>
 
             <Field
@@ -273,6 +320,29 @@ export function BusinessClient() {
             >
               <Input {...form.register("country")} />
             </Field>
+            <Field
+              label="Currency"
+              error={form.formState.errors.currency?.message}
+            >
+              <Controller
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["MAD", "USD", "EUR", "GBP", "CAD"].map((currency) => (
+                        <SelectItem key={currency} value={currency}>
+                          {currency}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
             <Field label="City" error={form.formState.errors.city?.message}>
               <Input {...form.register("city")} />
             </Field>
@@ -300,6 +370,18 @@ export function BusinessClient() {
                 type="number"
                 step="any"
                 {...form.register("longitude", { valueAsNumber: true })}
+              />
+            </Field>
+            <Field
+              label="Cancellation window (hours)"
+              error={form.formState.errors.cancellationWindowHours?.message}
+            >
+              <Input
+                type="number"
+                min="0"
+                {...form.register("cancellationWindowHours", {
+                  valueAsNumber: true,
+                })}
               />
             </Field>
             <div className="md:col-span-2">

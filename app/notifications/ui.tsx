@@ -10,7 +10,7 @@ import type { Notification } from "@/lib/types";
 
 const notifications: Notification[] = [
   { _id: "n1", userId: "u1", type: "appointment", title: "New appointment", message: "A new appointment was created", isRead: false, metadata: {}, createdAt: "2026-05-13T10:00:00.000Z" },
-  { _id: "n2", userId: "u1", type: "subscription", title: "Subscription update", message: "Stripe webhook processing completed", isRead: true, metadata: {}, createdAt: "2026-05-12T10:00:00.000Z" }
+  { _id: "n2", userId: "u1", type: "reminder", title: "Appointment reminder", message: "An appointment reminder was sent", isRead: true, metadata: {}, createdAt: "2026-05-12T10:00:00.000Z" }
 ];
 
 export function NotificationsClient() {
@@ -20,7 +20,7 @@ export function NotificationsClient() {
     <div className="space-y-4">
       <Select value={type} onValueChange={setType}>
         <SelectTrigger className="w-full md:w-52"><SelectValue /></SelectTrigger>
-        <SelectContent>{["all", "appointment", "subscription", "system"].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+        <SelectContent>{["all", "appointment", "reminder", "system"].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
       </Select>
       <div className="space-y-2">
         {filtered.map((item) => (
