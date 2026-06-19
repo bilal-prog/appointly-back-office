@@ -13,7 +13,8 @@ export type User = {
 
 export type LoginResponse = {
   user: User;
-  token: string;
+  accessToken: string;
+  refreshToken: string;
 };
 
 export type AppointmentStatus =
@@ -102,6 +103,12 @@ export type Business = {
   status?: "draft" | "published" | "suspended";
   cancellationWindowHours?: number;
   appointmentsCount?: number;
+  logoFileId?: string;
+  coverFileId?: string;
+  galleryFileIds?: string[];
+  logoUrl?: string;
+  coverUrl?: string;
+  galleryUrls?: string[];
   createdAt?: string;
 };
 
@@ -124,6 +131,9 @@ export type BusinessPayload = {
   timezone: string;
   cancellationWindowHours: number;
   workingHours?: Record<string, WorkingHours>;
+  logoFileId?: string;
+  coverFileId?: string;
+  galleryFileIds?: string[];
 };
 
 export type ServicesResponse = PaginatedResponse<Service>;
@@ -131,12 +141,15 @@ export type ServicesResponse = PaginatedResponse<Service>;
 export type Service = {
   _id: string;
   businessId: string;
+  categoryId?: string | Category;
   name: string;
   description: string;
   durationInMinutes: number;
   bufferTimeInMinutes: number;
   price: number;
   isActive: boolean;
+  imageFileIds?: string[];
+  imageUrls?: string[];
 };
 
 export type Customer = {
@@ -153,12 +166,23 @@ export type CustomersResponse = PaginatedResponse<Customer>;
 export type Notification = {
   _id: string;
   userId: string;
-  type: "appointment" | "reminder" | "system";
+  type: "appointment" | "reminder" | "system" | "marketing";
   title: string;
   message: string;
   isRead: boolean;
   metadata: Record<string, unknown>;
   createdAt: string;
+  recipientCount?: number;
+};
+
+export type NotificationsResponse = PaginatedResponse<Notification>;
+
+export type MarketingPayload = {
+  target: "all" | "specific";
+  userIds?: string[];
+  title: string;
+  message: string;
+  imageUrl?: string;
 };
 
 export type Plan = "free" | "pro" | "premium";
@@ -169,3 +193,47 @@ export type AdminStats = {
   totalAppointments: number;
   activeSubscriptions: number;
 };
+
+export type Review = {
+  _id: string;
+  serviceId: { _id: string; name: string } | string;
+  businessId: { _id: string; name: string } | string;
+  customerId: { _id: string; name: string } | string;
+  appointmentId: string;
+  rating: number;
+  comment?: string;
+  status: "published" | "flagged" | "removed";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReviewsResponse = PaginatedResponse<Review>;
+
+export type AuditAction =
+  | "login"
+  | "register"
+  | "password_reset"
+  | "appointment_created"
+  | "appointment_updated"
+  | "appointment_cancelled"
+  | "subscription_created"
+  | "subscription_updated"
+  | "subscription_cancelled"
+  | "subscription_payment_failed"
+  | "reminder_sent"
+  | "business_updated";
+
+export type AuditLog = {
+  _id: string;
+  userId?: Pick<User, "_id" | "id" | "name" | "email">;
+  businessId?: Pick<Business, "_id" | "name">;
+  action: AuditAction;
+  entityType: string;
+  entityId?: string;
+  metadata?: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+};
+
+export type AuditLogsResponse = PaginatedResponse<AuditLog>;

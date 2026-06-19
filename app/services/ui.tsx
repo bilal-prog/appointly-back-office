@@ -7,7 +7,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
+import { FileUpload } from "@/components/shared/file-upload";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +32,7 @@ import { EmptyState, LoadingState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { clientApi } from "@/lib/client-api";
 import { formatCurrency } from "@/lib/utils";
-import type { Service, ServicesResponse } from "@/lib/types";
+import type { Category, Service, ServicesResponse } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
@@ -35,6 +43,8 @@ const schema = z.object({
   bufferTimeInMinutes: z.number().min(0, "Buffer time must be 0 or more"),
   price: z.number().min(0, "Price must be 0 or more"),
   isActive: z.boolean(),
+  imageFileIds: z.array(z.string()).optional(),
+  categoryId: z.string().min(1, "Category is required"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -54,7 +64,15 @@ export function ServicesClient() {
       bufferTimeInMinutes: 15,
       price: 0,
       isActive: true,
+      imageFileIds: [],
+      categoryId: "",
     },
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () =>
+      (await clientApi.get<{ data: Category[] }>("/categories")).data.data,
   });
 
   const { data: services, isLoading } = useQuery({
@@ -125,6 +143,11 @@ export function ServicesClient() {
 
   function handleEdit(service: Service) {
     setEditingService(service);
+    const serviceCategory =
+      typeof service.categoryId === "object"
+        ? service.categoryId._id
+        : service.categoryId;
+
     form.reset({
       name: service.name,
       description: service.description,
@@ -132,6 +155,8 @@ export function ServicesClient() {
       bufferTimeInMinutes: service.bufferTimeInMinutes,
       price: service.price,
       isActive: service.isActive,
+      imageFileIds: service.imageFileIds ?? [],
+      categoryId: serviceCategory ?? "",
     });
     setOpen(true);
   }
@@ -190,6 +215,43 @@ export function ServicesClient() {
                   </p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Controller
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) =>
+                    categories && categories.length > 0 ? (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent
+                          position="popper"
+                          side="bottom"
+                          sideOffset={5}
+                          className="z-[9999]"
+                        >
+                          {categories.map((category) => (
+                            <SelectItem key={category._id} value={category._id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="h-9 w-full rounded-md border bg-background px-3 text-sm flex items-center text-muted-foreground">
+                        Loading categories...
+                      </div>
+                    )
+                  }
+                />
+                {form.formState.errors.categoryId && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.categoryId.message}
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Duration (minutes)</Label>
@@ -232,6 +294,21 @@ export function ServicesClient() {
                     {form.formState.errors.price.message}
                   </p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label>Service Images</Label>
+                <Controller
+                  control={form.control}
+                  name="imageFileIds"
+                  render={({ field }) => (
+                    <FileUpload
+                      value={field.value}
+                      onChange={field.onChange}
+                      maxFiles={5}
+                      helperText="Images of your service (up to 5 images)"
+                    />
+                  )}
+                />
               </div>
               {editingService ? (
                 <div className="flex items-center justify-between rounded-md border p-3">

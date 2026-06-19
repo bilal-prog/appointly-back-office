@@ -33,11 +33,19 @@ import type {
 const PAGE_SIZE = 10;
 
 function relationName(
-  relation: { name?: string } | string | null | undefined,
+  relation: { _id?: string; name?: string } | string | null | undefined,
   fallback: string,
 ) {
-  if (relation && typeof relation === "object" && relation.name) {
-    return relation.name;
+  if (relation) {
+    if (typeof relation === "object" && relation.name) {
+      return relation.name;
+    }
+    if (typeof relation === "string") {
+      return relation;
+    }
+    if (typeof relation === "object" && relation._id) {
+      return relation._id;
+    }
   }
   return fallback;
 }
@@ -94,7 +102,7 @@ export function AppointmentsClient({ role }: { role: UserRole }) {
       const text =
         `${relationName(item.customerId, "Deleted customer")} ${relationName(
           item.serviceId,
-          item.serviceName ?? "Deleted service",
+          item.serviceName ?? "Unknown Service",
         )} ${relationName(item.businessId, "Deleted business")}`.toLowerCase();
       return text.includes(search.toLowerCase());
     });
@@ -128,7 +136,12 @@ export function AppointmentsClient({ role }: { role: UserRole }) {
           <SelectTrigger className="w-full md:w-44">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            position="popper"
+            side="bottom"
+            sideOffset={5}
+            className="z-[9999]"
+          >
             {["all", "pending", "confirmed", "cancelled", "completed"].map(
               (item) => (
                 <SelectItem key={item} value={item}>
@@ -167,7 +180,10 @@ export function AppointmentsClient({ role }: { role: UserRole }) {
                 {relationName(item.customerId, "Deleted customer")}
               </td>
               <td className="px-4 py-3">
-                {relationName(item.serviceId, item.serviceName ?? "Deleted service")}
+                {relationName(
+                  item.serviceId,
+                  item.serviceName ?? "Unknown Service",
+                )}
               </td>
               <td className="px-4 py-3">
                 <StatusBadge value={item.status} />
@@ -220,7 +236,7 @@ export function AppointmentsClient({ role }: { role: UserRole }) {
                 <strong>Service:</strong>{" "}
                 {relationName(
                   selected.serviceId,
-                  selected.serviceName ?? "Deleted service",
+                  selected.serviceName ?? "Unknown Service",
                 )}
               </p>
               <p>

@@ -5,10 +5,22 @@ import { Calendar, Clock, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmptyState, LoadingState } from "@/components/shared/states";
 import { clientApi } from "@/lib/client-api";
 
@@ -18,48 +30,82 @@ export function AvailabilityClient({ businessId }: { businessId: string }) {
 
   const { data: services } = useQuery({
     queryKey: ["services"],
-    queryFn: async () => (await clientApi.get("/services")).data
+    queryFn: async () => (await clientApi.get("/services")).data,
   });
 
-  const { data: slots, isLoading, refetch } = useQuery({
+  const {
+    data: slots,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["availability", businessId, serviceId, date],
     queryFn: async () => {
       if (!serviceId) return [];
-      const response = await clientApi.get(`/businesses/${businessId}/availability`, {
-        params: { serviceId, date }
-      });
+      const response = await clientApi.get(
+        `/businesses/${businessId}/availability`,
+        {
+          params: { serviceId, date },
+        },
+      );
       return response.data;
     },
-    enabled: !!serviceId
+    enabled: !!serviceId,
   });
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" />Availability checker</CardTitle>
-          <CardDescription>View available time slots for appointments based on your working hours and existing bookings.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Availability checker
+          </CardTitle>
+          <CardDescription>
+            View available time slots for appointments based on your working
+            hours and existing bookings.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-48" />
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-48"
+              />
             </div>
             <div className="space-y-2">
               <Label>Service</Label>
               <Select value={serviceId} onValueChange={setServiceId}>
-                <SelectTrigger className="w-64"><SelectValue placeholder="Select a service" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select a service" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  side="bottom"
+                  sideOffset={5}
+                  className="z-[9999]"
+                >
                   {services?.map((service: any) => (
-                    <SelectItem key={service._id} value={service._id}>{service.name}</SelectItem>
+                    <SelectItem key={service._id} value={service._id}>
+                      {service.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-end">
-              <Button onClick={() => refetch()} disabled={!serviceId || isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+              <Button
+                onClick={() => refetch()}
+                disabled={!serviceId || isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Clock className="h-4 w-4" />
+                )}
                 Check availability
               </Button>
             </div>
@@ -73,7 +119,10 @@ export function AvailabilityClient({ businessId }: { businessId: string }) {
         <Card>
           <CardHeader>
             <CardTitle>Available slots</CardTitle>
-            <CardDescription>{slots.length} time slots available on {format(new Date(date), "PPP")}</CardDescription>
+            <CardDescription>
+              {slots.length} time slots available on{" "}
+              {format(new Date(date), "PPP")}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
@@ -86,7 +135,10 @@ export function AvailabilityClient({ businessId }: { businessId: string }) {
           </CardContent>
         </Card>
       ) : serviceId ? (
-        <EmptyState title="No available slots" description="All time slots are booked or the business is closed on this date." />
+        <EmptyState
+          title="No available slots"
+          description="All time slots are booked or the business is closed on this date."
+        />
       ) : null}
     </div>
   );

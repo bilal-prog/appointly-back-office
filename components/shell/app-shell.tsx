@@ -11,6 +11,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
+  FileText,
   Settings,
   Users,
   X
@@ -30,6 +32,7 @@ const businessNav = [
   { href: "/business", label: "Business Profile", icon: Building2 },
   { href: "/services", label: "Services", icon: Settings },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/reviews", label: "Reviews", icon: MessageSquare },
   { href: "/subscriptions", label: "Subscriptions", icon: CreditCard },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/settings", label: "Settings", icon: Settings }
@@ -40,8 +43,10 @@ const adminNav = [
   { href: "/admin/businesses", label: "Businesses", icon: Building2 },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/appointments", label: "Appointments", icon: BriefcaseBusiness },
+  { href: "/reviews", label: "Reviews", icon: MessageSquare },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/audit-logs", label: "Audit Logs", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings }
 ];
 

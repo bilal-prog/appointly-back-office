@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { cookieNames, getCurrentUser } from "@/lib/api";
+import { cookieNames, getServerUser } from "@/lib/api";
 
 export async function GET() {
   const token = (await cookies()).get(cookieNames.token)?.value;
@@ -18,7 +18,7 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json({ token, url, user: await getCurrentUser() });
+    return NextResponse.json({ token, url, user: await getServerUser() });
   } catch (error: any) {
     const message =
       error.response?.data?.message ||

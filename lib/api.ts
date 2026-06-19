@@ -16,12 +16,18 @@ import type {
   User,
   Service,
   ServicesResponse,
+  Review,
+  ReviewsResponse,
+  MarketingPayload,
+  NotificationsResponse,
+  AuditLogsResponse,
 } from "@/lib/types";
 
-const TOKEN_COOKIE = "appointly_token";
+const TOKEN_COOKIE = "appointly_access_token";
+const REFRESH_TOKEN_COOKIE = "appointly_refresh_token";
 const USER_COOKIE = "appointly_user";
 
-export const cookieNames = { token: TOKEN_COOKIE, user: USER_COOKIE };
+export const cookieNames = { token: TOKEN_COOKIE, refresh: REFRESH_TOKEN_COOKIE, user: USER_COOKIE };
 
 export async function getServerUser() {
   const jar = await cookies();
@@ -56,38 +62,94 @@ export async function getServerUser() {
 }
 
 export async function setAuthCookies(response: LoginResponse) {
-  const jar = await cookies();
-  jar.set(TOKEN_COOKIE, response.token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-  jar.set(USER_COOKIE, encodeURIComponent(JSON.stringify(response.user)), {
-    httpOnly: false,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  try {
+    const jar = await cookies();
+    jar.set(TOKEN_COOKIE, response.accessToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    jar.set(REFRESH_TOKEN_COOKIE, response.refreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    jar.set(USER_COOKIE, encodeURIComponent(JSON.stringify(response.user)), {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+  } catch (error) {
+    // Ignore error in Server Components
+  }
 }
 
 export async function setUserCookie(user: User) {
-  const jar = await cookies();
-  jar.set(USER_COOKIE, encodeURIComponent(JSON.stringify(user)), {
-    httpOnly: false,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  try {
+    const jar = await cookies();
+    jar.set(USER_COOKIE, encodeURIComponent(JSON.stringify(user)), {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+  } catch (error) {
+    // Ignore error in Server Components
+  }
 }
 
 export async function clearAuthCookies() {
+  try {
+    const jar = await cookies();
+    jar.delete(TOKEN_COOKIE);
+    jar.delete(REFRESH_TOKEN_COOKIE);
+    jar.delete(USER_COOKIE);
+  } catch (error) {
+    // Ignore error in Server Components
+  }
+}
+
+export async function logout() {
   const jar = await cookies();
-  jar.delete(TOKEN_COOKIE);
-  jar.delete(USER_COOKIE);
+  const refreshToken = jar.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (refreshToken) {
+    try {
+      await axios.post(backendUrl("/api/auth/logout"), { refreshToken });
+    } catch {}
+  }
+  await clearAuthCookies();
+}
+
+async function refreshAuthToken(): Promise<string | null> {
+  const jar = await cookies();
+  const refreshToken = jar.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshToken) return null;
+
+  try {
+    const response = await axios.post<{ accessToken: string }>(backendUrl("/api/auth/refresh"), { refreshToken });
+    const { accessToken } = response.data;
+    try {
+      jar.set(TOKEN_COOKIE, accessToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    } catch (e) {
+      // Ignore error in Server Components
+    }
+    return accessToken;
+  } catch {
+    return null;
+  }
 }
 
 function backendUrl(path: string) {
@@ -102,17 +164,29 @@ async function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function backendGet<T>(path: string): Promise<T> {
+async function executeWithAuthRetry<T>(
+  requestFn: (headers: any) => Promise<T>
+): Promise<T> {
   try {
-    const response = await axios.get<T>(backendUrl(path), {
-      headers: await authHeaders(),
-    });
-    return response.data;
+    const headers = await authHeaders();
+    return await requestFn(headers);
   } catch (error) {
-    if ((error as AxiosError).response?.status === 401)
+    if ((error as AxiosError).response?.status === 401) {
+      const newToken = await refreshAuthToken();
+      if (newToken) {
+        return await requestFn({ Authorization: `Bearer ${newToken}` });
+      }
       await clearAuthCookies();
+    }
     throw error;
   }
+}
+
+async function backendGet<T>(path: string): Promise<T> {
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.get<T>(backendUrl(path), { headers });
+    return response.data;
+  });
 }
 
 function withSearchParams(path: string, params?: URLSearchParams) {
@@ -125,55 +199,42 @@ async function backendPost<T>(
   body: unknown,
   withAuth = true,
 ): Promise<T> {
-  try {
-    const response = await axios.post<T>(backendUrl(path), body, {
-      headers: withAuth ? await authHeaders() : undefined,
-    });
-    return response.data;
-  } catch (error) {
-    if ((error as AxiosError).response?.status === 401)
-      await clearAuthCookies();
-    throw error;
+  if (!withAuth) {
+    try {
+      const response = await axios.post<T>(backendUrl(path), body);
+      return response.data;
+    } catch (error) {
+      if ((error as AxiosError).response?.status === 401)
+        await clearAuthCookies();
+      throw error;
+    }
   }
+
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.post<T>(backendUrl(path), body, { headers });
+    return response.data;
+  });
 }
 
 async function backendPut<T>(path: string, body: unknown): Promise<T> {
-  try {
-    const response = await axios.put<T>(backendUrl(path), body, {
-      headers: await authHeaders(),
-    });
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.put<T>(backendUrl(path), body, { headers });
     return response.data;
-  } catch (error) {
-    if ((error as AxiosError).response?.status === 401)
-      await clearAuthCookies();
-    throw error;
-  }
+  });
 }
 
 async function backendPatch<T>(path: string, body: unknown): Promise<T> {
-  try {
-    const response = await axios.patch<T>(backendUrl(path), body, {
-      headers: await authHeaders(),
-    });
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.patch<T>(backendUrl(path), body, { headers });
     return response.data;
-  } catch (error) {
-    if ((error as AxiosError).response?.status === 401)
-      await clearAuthCookies();
-    throw error;
-  }
+  });
 }
 
 async function backendDelete<T>(path: string): Promise<T> {
-  try {
-    const response = await axios.delete<T>(backendUrl(path), {
-      headers: await authHeaders(),
-    });
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.delete<T>(backendUrl(path), { headers });
     return response.data;
-  } catch (error) {
-    if ((error as AxiosError).response?.status === 401)
-      await clearAuthCookies();
-    throw error;
-  }
+  });
 }
 
 export async function login(body: { email: string; password: string }) {
@@ -284,6 +345,13 @@ export async function createCheckoutSession(plan: "pro" | "premium") {
   return backendPost<{ status: "success"; url: string }>(
     "/api/subscriptions/checkout",
     { plan },
+  );
+}
+
+export async function cancelSubscription() {
+  return backendPost<{ status: "success"; message: string }>(
+    "/api/subscriptions/cancel",
+    {},
   );
 }
 
@@ -400,4 +468,79 @@ export async function updateAppointmentStatus(
 
 export async function deleteAppointment(appointmentId: string) {
   return backendDelete(`/api/appointments/${appointmentId}`);
+}
+
+export async function uploadFiles(formData: FormData) {
+  return executeWithAuthRetry(async (headers) => {
+    const response = await axios.post(
+      backendUrl("/api/files/uploads"),
+      formData,
+      {
+        headers: {
+          ...headers,
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    );
+    return response.data;
+  });
+}
+
+export async function deleteFile(fileId: string) {
+  return backendDelete(`/api/files/${fileId}`);
+}
+
+export async function getReviews(
+  params?: URLSearchParams,
+): Promise<ReviewsResponse> {
+  const path = withSearchParams("/api/reviews", params);
+  return backendGet<ReviewsResponse>(path);
+}
+
+export async function flagReview(reviewId: string) {
+  return backendPatch(`/api/reviews/${reviewId}/flag`, {});
+}
+
+export async function moderateReview(
+  reviewId: string,
+  status: "published" | "removed",
+) {
+  return backendPatch(`/api/reviews/${reviewId}/moderate`, { status });
+}
+
+export async function forgotPassword(email: string) {
+  return backendPost<{ message: string }>("/api/auth/forgot-password", { email }, false);
+}
+
+export async function resetPassword(currentPassword: string, newPassword: string) {
+  return backendPost<{ message: string }>("/api/auth/reset-password", { currentPassword, newPassword }, true);
+}
+
+// Notifications
+export async function getNotifications(params?: URLSearchParams): Promise<NotificationsResponse> {
+  return backendGet(withSearchParams("/api/notifications", params));
+}
+
+export async function getSentNotifications(params?: URLSearchParams): Promise<NotificationsResponse> {
+  return backendGet(withSearchParams("/api/notifications/sent", params));
+}
+
+export async function getUnreadCount(): Promise<{ unreadCount: number } | number> {
+  return backendGet("/api/notifications/unread-count");
+}
+
+export async function markAsRead(notificationId?: string) {
+  return backendPatch("/api/notifications/read", { notificationId });
+}
+
+export async function deleteNotification(notificationId: string) {
+  return backendDelete(`/api/notifications/${notificationId}`);
+}
+
+export async function sendMarketingNotification(payload: MarketingPayload) {
+  return backendPost("/api/notifications/marketing", payload);
+}
+
+export async function getAuditLogs(params?: URLSearchParams): Promise<AuditLogsResponse> {
+  return backendGet(withSearchParams("/api/audit-logs", params));
 }

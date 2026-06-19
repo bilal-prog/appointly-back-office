@@ -42,13 +42,8 @@ export function AdminUsersClient() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({
-      id,
-      isActive,
-    }: {
-      id: string;
-      isActive: boolean;
-    }) => clientApi.patch(`/users/${id}`, { isActive }),
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) =>
+      clientApi.patch(`/users/${id}`, { isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast.success("User updated");
@@ -105,7 +100,12 @@ export function AdminUsersClient() {
           <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            position="popper"
+            side="bottom"
+            sideOffset={5}
+            className="z-[9999]"
+          >
             <SelectItem value="all">all roles</SelectItem>
             <SelectItem value="admin">admin</SelectItem>
             <SelectItem value="business">business</SelectItem>
@@ -115,7 +115,14 @@ export function AdminUsersClient() {
       </div>
       {filtered.length ? (
         <DataTable
-          headers={["User", "Email", "Role", "Status", "Business id", "Actions"]}
+          headers={[
+            "User",
+            "Email",
+            "Role",
+            "Status",
+            "Business id",
+            "Actions",
+          ]}
           pagination={users?.meta}
           onPageChange={setOffset}
         >
@@ -127,7 +134,9 @@ export function AdminUsersClient() {
                 <StatusBadge value={user.role} />
               </td>
               <td className="px-4 py-3">
-                <StatusBadge value={user.isActive === false ? "inactive" : "active"} />
+                <StatusBadge
+                  value={user.isActive === false ? "inactive" : "active"}
+                />
               </td>
               <td className="px-4 py-3">{user.businessId ?? "-"}</td>
               <td className="px-4 py-3">

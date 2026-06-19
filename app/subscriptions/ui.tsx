@@ -1,7 +1,7 @@
 "use client";
 
 import { CreditCard, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { PlanCard } from "@/components/shared/plan-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { clientApi } from "@/lib/client-api";
@@ -47,7 +48,9 @@ const plans = [
 ];
 
 export function SubscriptionsClient() {
+  const queryClient = useQueryClient();
   const [loadingPlan, setLoadingPlan] = useState<Plan | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["business"],
@@ -72,6 +75,23 @@ export function SubscriptionsClient() {
         "Checkout could not be opened";
       toast.error(message);
       setLoadingPlan(null);
+    }
+  }
+
+  async function cancelSubscription() {
+    setCancelling(true);
+    try {
+      const response = await clientApi.post("/subscriptions/cancel");
+      toast.success(response.data?.message || "Subscription cancelled successfully");
+      await queryClient.invalidateQueries({ queryKey: ["business"] });
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Failed to cancel subscription";
+      toast.error(message);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -100,6 +120,18 @@ export function SubscriptionsClient() {
             <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Preparing checkout
+            </div>
+          ) : currentPlan !== "free" ? (
+            <div className="ml-auto">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={cancelSubscription}
+                disabled={cancelling}
+              >
+                {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Cancel subscription
+              </Button>
             </div>
           ) : null}
         </CardContent>

@@ -21,7 +21,9 @@ const styles: Record<string, string> = {
   customer: "border-sky-200 bg-sky-50 text-sky-700",
   appointment: "border-teal-200 bg-teal-50 text-teal-700",
   reminder: "border-amber-200 bg-amber-50 text-amber-700",
-  system: "border-slate-200 bg-slate-50 text-slate-600"
+  system: "border-slate-200 bg-slate-50 text-slate-600",
+  flagged: "border-amber-200 bg-amber-50 text-amber-700",
+  removed: "border-rose-200 bg-rose-50 text-rose-700"
 };
 
 export function StatusBadge({ value }: { value: string }) {

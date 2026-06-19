@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { FileUpload } from "@/components/shared/file-upload";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -65,6 +66,9 @@ const schema = z.object({
     .number()
     .min(0, "Cancellation window must be 0 or more"),
   workingHours: z.record(workingHoursSchema),
+  logoFileId: z.string().optional(),
+  coverFileId: z.string().optional(),
+  galleryFileIds: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -96,11 +100,13 @@ export function BusinessClient() {
     },
   });
 
-  const { data: categories } = useQuery({
+  const { data: categories, isLoading: isLoadingCategories } = useQuery({
     queryKey: ["categories"],
     queryFn: async () =>
       (await clientApi.get<{ data: Category[] }>("/categories")).data.data,
   });
+
+  console.log("categories:", categories);
 
   const business = data?.business;
   const businessCategory =
@@ -123,6 +129,9 @@ export function BusinessClient() {
       timezone: "",
       cancellationWindowHours: 24,
       workingHours: defaultWorkingHours,
+      logoFileId: "",
+      coverFileId: "",
+      galleryFileIds: [],
     },
     values: business
       ? {
@@ -138,6 +147,9 @@ export function BusinessClient() {
           timezone: business.timezone ?? "",
           cancellationWindowHours: business.cancellationWindowHours ?? 24,
           workingHours: business.workingHours ?? defaultWorkingHours,
+          logoFileId: business.logoFileId ?? "",
+          coverFileId: business.coverFileId ?? "",
+          galleryFileIds: business.galleryFileIds ?? [],
         }
       : undefined,
     resetOptions: {
@@ -148,44 +160,32 @@ export function BusinessClient() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      const payload = {
+        name: values.name,
+        description: values.description,
+        category: values.category,
+        currency: values.currency,
+        location: {
+          country: values.country,
+          city: values.city,
+          address: values.address,
+          coordinates: {
+            latitude: values.latitude,
+            longitude: values.longitude,
+          },
+        },
+        timezone: values.timezone,
+        cancellationWindowHours: values.cancellationWindowHours,
+        workingHours: values.workingHours,
+        logoFileId: values.logoFileId || undefined,
+        coverFileId: values.coverFileId || undefined,
+        galleryFileIds: values.galleryFileIds || [],
+      };
+
       if (business) {
-        await clientApi.put(`/businesses/${business._id}`, {
-          name: values.name,
-          description: values.description,
-          category: values.category,
-          currency: values.currency,
-          location: {
-            country: values.country,
-            city: values.city,
-            address: values.address,
-            coordinates: {
-              latitude: values.latitude,
-              longitude: values.longitude,
-            },
-          },
-          timezone: values.timezone,
-          cancellationWindowHours: values.cancellationWindowHours,
-          workingHours: values.workingHours,
-        });
+        await clientApi.put(`/businesses/${business._id}`, payload);
       } else {
-        await clientApi.post("/businesses", {
-          name: values.name,
-          description: values.description,
-          category: values.category,
-          currency: values.currency,
-          location: {
-            country: values.country,
-            city: values.city,
-            address: values.address,
-            coordinates: {
-              latitude: values.latitude,
-              longitude: values.longitude,
-            },
-          },
-          timezone: values.timezone,
-          cancellationWindowHours: values.cancellationWindowHours,
-          workingHours: values.workingHours,
-        });
+        await clientApi.post("/businesses", payload);
       }
     },
     onSuccess: () => {
@@ -234,20 +234,39 @@ export function BusinessClient() {
               <Controller
                 control={form.control}
                 name="category"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(categories ?? []).map((category) => (
-                        <SelectItem key={category._id} value={category._id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                render={({ field }) =>
+                  isLoadingCategories ? (
+                    <div className="h-9 w-full rounded-md border bg-background px-3 text-sm flex items-center text-muted-foreground">
+                      Loading categories...
+                    </div>
+                  ) : categories && categories.length > 0 ? (
+                    <Select
+                      key={field.value}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        side="bottom"
+                        sideOffset={5}
+                        className="z-[9999]"
+                      >
+                        {categories.map((category) => (
+                          <SelectItem key={category._id} value={category._id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-9 w-full rounded-md border bg-background px-3 text-sm flex items-center text-muted-foreground">
+                      No categories found
+                    </div>
+                  )
+                }
               />
             </Field>
 
@@ -332,7 +351,12 @@ export function BusinessClient() {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent
+                      position="popper"
+                      side="bottom"
+                      sideOffset={5}
+                      className="z-[9999]"
+                    >
                       {["MAD", "USD", "EUR", "GBP", "CAD"].map((currency) => (
                         <SelectItem key={currency} value={currency}>
                           {currency}
@@ -391,6 +415,60 @@ export function BusinessClient() {
               >
                 <Textarea {...form.register("description")} />
               </Field>
+            </div>
+            <div className="md:col-span-2 border-t pt-6 mt-4">
+              <h3 className="text-lg font-semibold mb-4">Business Media</h3>
+              <div className="grid gap-6 md:grid-cols-2 mb-6">
+                <div>
+                  <Label className="block mb-2 font-medium text-sm">Logo</Label>
+                  <Controller
+                    control={form.control}
+                    name="logoFileId"
+                    render={({ field }) => (
+                      <FileUpload
+                        value={field.value}
+                        onChange={field.onChange}
+                        maxFiles={1}
+                        helperText="Square image up to 5MB"
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <Label className="block mb-2 font-medium text-sm">
+                    Cover Image
+                  </Label>
+                  <Controller
+                    control={form.control}
+                    name="coverFileId"
+                    render={({ field }) => (
+                      <FileUpload
+                        value={field.value}
+                        onChange={field.onChange}
+                        maxFiles={1}
+                        helperText="Landscape banner up to 5MB"
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+              <div className="mb-6">
+                <Label className="block mb-2 font-medium text-sm">
+                  Gallery Images
+                </Label>
+                <Controller
+                  control={form.control}
+                  name="galleryFileIds"
+                  render={({ field }) => (
+                    <FileUpload
+                      value={field.value}
+                      onChange={field.onChange}
+                      maxFiles={10}
+                      helperText="Showcase your space, services, or team (up to 10 images)"
+                    />
+                  )}
+                />
+              </div>
             </div>
             <div className="md:col-span-2">
               <Button disabled={mutation.isPending}>

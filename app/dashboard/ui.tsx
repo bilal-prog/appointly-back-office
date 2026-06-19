@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import { toast } from "sonner";
 import {
   Area,
   AreaChart,
@@ -91,11 +92,27 @@ export function DashboardClient({ user }: { user: User }) {
           queryClient.invalidateQueries({ queryKey: ["business-dashboard"] });
         };
 
-        socket.on("appointment:created", refreshDashboard);
-        // socket.on("new_appointment", refreshDashboard);
-        socket.on("appointment:updated", refreshDashboard);
-        socket.on("appointment:cancelled", refreshDashboard);
-        socket.on("notification", refreshDashboard);
+        socket.on("appointment:created", () => {
+          toast.success("New appointment received!");
+          const audio = new Audio("/sounds/notification.ogg");
+          audio.play().catch((err) => console.log("Audio play failed:", err));
+          refreshDashboard();
+        });
+
+        // socket.on("appointment:updated", () => {
+        //   toast.info("Appointment updated.");
+        //   refreshDashboard();
+        // });
+
+        socket.on("appointment:cancelled", () => {
+          toast.error("Appointment cancelled.");
+          refreshDashboard();
+        });
+
+        socket.on("notification", (data) => {
+          toast.info(data?.title || "New notification received!");
+          refreshDashboard();
+        });
       } catch {
         return;
       }

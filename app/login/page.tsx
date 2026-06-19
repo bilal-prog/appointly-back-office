@@ -49,8 +49,15 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+      {/* Magic Background */}
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] opacity-20 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-tr from-primary to-accent blur-[120px] rounded-full animate-pulse-glow" />
+        </div>
+      </div>
+
+      <Card className="w-full max-w-md relative z-10 backdrop-blur-xl bg-background/80 border-border shadow-2xl">
         <CardHeader>
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <CalendarCheck className="h-5 w-5" />
@@ -75,7 +82,16 @@ export default function LoginPage() {
               ) : null}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => router.push("/forgot-password")}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"

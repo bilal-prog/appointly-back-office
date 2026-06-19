@@ -116,7 +116,12 @@ export function AdminBusinessesClient({
             <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              position="popper"
+              side="bottom"
+              sideOffset={5}
+              className="z-[9999]"
+            >
               <SelectItem value="all">all statuses</SelectItem>
               <SelectItem value="draft">draft</SelectItem>
               <SelectItem value="published">published</SelectItem>

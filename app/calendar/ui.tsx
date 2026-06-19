@@ -46,7 +46,7 @@ export function CalendarClient() {
         await clientApi.get<Appointment[] | { appointments: Appointment[] }>(
           "/calendar",
           {
-          params: { startDate, endDate },
+            params: { startDate, endDate },
           },
         )
       ).data,
@@ -82,7 +82,12 @@ export function CalendarClient() {
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            position="popper"
+            side="bottom"
+            sideOffset={5}
+            className="z-[9999]"
+          >
             {["all", "pending", "confirmed", "cancelled", "completed"].map(
               (item) => (
                 <SelectItem key={item} value={item}>
