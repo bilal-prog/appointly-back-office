@@ -106,8 +106,6 @@ export function BusinessClient() {
       (await clientApi.get<{ data: Category[] }>("/categories")).data.data,
   });
 
-  console.log("categories:", categories);
-
   const business = data?.business;
   const businessCategory =
     typeof business?.category === "object"

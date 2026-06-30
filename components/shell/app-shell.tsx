@@ -24,6 +24,7 @@ import { clearClientUser, saveClientUser } from "@/lib/auth";
 import { clientApi } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import type { User } from "@/lib/types";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 const businessNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -137,10 +138,13 @@ export function AppShell({ user, children }: { user: User; children: React.React
             </Button>
             <h1 className="text-base font-semibold">{title}</h1>
           </div>
-          <Button variant="outline" size="sm" onClick={logout}>
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="outline" size="sm" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
         </header>
         <main className="mx-auto max-w-7xl p-4 md:p-6">{children}</main>
       </div>
